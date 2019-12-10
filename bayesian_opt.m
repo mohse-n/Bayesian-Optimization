@@ -44,7 +44,7 @@ for iter = 1:5
     
     [postMu, postCov] = computePosterior(xs, Xtrain, ftrain);
     
-    %% Various plots the functions for visualization.
+    %% Various plots for visualization purposes only.
     
     % Plot the posterior Gaussian process with two standard deviation bounds.
     figure; hold on
