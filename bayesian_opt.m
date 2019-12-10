@@ -8,30 +8,32 @@ xs = (-5:0.2:5)';
 % Covariance matrix. 
 cov =  Kfn(xs, xs);
 mu = muFn(xs);
+Xiknow = [0 1 2 3 4 5];
+ftrain = 0
 
 for iter = 1:5
   
-    figure
-
+iter
     %% Obtain the new evaluation point.
-    
+    figure; hold on
     if iter ~= 1
         % Obtain the EI funtion at sample points. Only for visualization.
         % It wouldn't be practical to do this in higher dimensional problems.
-        ei = expectedImprovement(mu, cov);
-        % Now that we have the function evaluated on a grid, do a grid search
+        ei = expectedImprovement(xs, Xtrain, ftrain, mu, cov);
+        % Optimization the acquision function:
+        % Now that we have the  acquisitionfunction evaluated on a grid, do a grid search
         % to find the maximum of EI. Normally, in higher dimensional problems,
-        % we would just optimize it.
+        % we would optimize it using a more efficient method.
         [max_val,max_index] = max(ei);
         % Our new point for evaluation is one at which EI is maximum.
-        Xnew = xs(max_index);
-        Xtrain(end+1,1) = Xnew;
+        Xnew = xs(max_index)
+        Xtrain(end+1,1) = Xiknow(iter);
         % Plot the expected improvement function.
         plot(xs,ei)
     else
         % First iteration, evaluate a random point in the domain (or 
         % use an existing desing.)
-        Xnew = -5 + (5+5)*rand;
+        Xnew = 0;
         Xtrain = Xnew;
     end
     
@@ -39,8 +41,8 @@ for iter = 1:5
     % Noiseless observation. Not realistic IRL because give a set
     % of design parameters, our evaluation is never exactly the same
     % as the "true" underlying function.
-    ftrain = sin(Xtrain);
-    
+    ftrain = Xtrain.^2 .* sin(Xtrain)
+    plot(Xtrain, ftrain, 'ok')
     %% Obtain the posterior, given the observations.
     
     [postMu, postCov] = computePosterior(xs, Xtrain, ftrain);
@@ -48,7 +50,7 @@ for iter = 1:5
     %% Various plots for visualization purposes only.
     
     % Plot the posterior Gaussian process with two standard deviation bounds.
-    figure; hold on
+    
     mu = postMu(:);
     S2 = diag(postCov);
     f = [mu+2*sqrt(S2);flip(mu-2*sqrt(S2),1)];
@@ -57,15 +59,16 @@ for iter = 1:5
     % Sample the posterior and plot the sample functions.
     for i=1:3
         fs = sampleGuassianProcess(postMu, postCov);
-        plot(xs, fs, 'k-', 'linewidth', 2)
+        % Uncomment to plot a 3 sample functions.
+        %plot(xs, fs, 'k-', 'linewidth', 2)
         hold on
     end
-
+    
     % Plot the mean.
     plot(xs, mu, 'r', 'LineWidth', 2)
     
     %% The posterior in current iteration will be the the prior in the next.
-    
+   
     mu = postMu;
     cov = postCov;
     
@@ -100,13 +103,16 @@ function fs = sampleGuassianProcess(mu, sigma)
     fs = bsxfun(@plus, mu(:), A*Z)';
 end
 
-function ei = expectedImprovement(mu, cov)
+function ei = expectedImprovement(xs, Xtrain, ftrain, mu, cov)
 % Returns the value of expected imrovment function at the sample points.
-    t = min(mu);
-    imp = mu - t;
-    Z = imp ./ diag(cov);
-    ei = imp .* cdf('Normal',Z,0,1) + diag(cov) .* pdf('Normal',Z,0,1);
-
+    % Best result yet.
+    zeta = 0.01;
+    t = min(ftrain);
+    imp = mu - t - zeta;
+    sigma = diag(cov);
+    Z = imp ./ sigma;
+    ei = imp .* cdf('Normal',Z,0,1) + sigma .* pdf('Normal',Z,0,1);
+    ei(sigma == 0 ) = 0; 
 end
 
 function [postMu, postCov] = computePosterior(xs, Xtrain, ftrain)
