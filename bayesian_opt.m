@@ -4,62 +4,73 @@ L = 1;
 %% Plot sample functions from the prior.
 % Sample points.
 xs = (-5:0.2:5)';
-% Number of sample points.
-ns = length(xs);
 % Covariance matrix. 
 cov =  Kfn(xs, xs);
 mu = muFn(xs);
 
-Xnew = -5 + (5+5)*rand;
-
 for iter = 1:5
   
+    figure
+
+    %% Obtain the new evaluation point.
     
-iter
-figure
+    if iter ~= 1
+        % Obtain the EI funtion at sample points. Only for visualization.
+        % It wouldn't be practical to do this in higher dimensional problems.
+        ei = expectedImprovement(mu, cov);
+        % Now that we have the function evaluated on a grid, do a grid search
+        % to find the maximum of EI. Normally, in higher dimensional problems,
+        % we would just optimize it.
+        [max_val,max_index] = max(ei);
+        % Our new point for evaluation is one at which EI is maximum.
+        Xnew = xs(max_index);
+        Xtrain(end+1,1) = Xnew;
+        % Plot the expected improvement function.
+        plot(xs,ei)
+    else
+        % First iteration, evaluate a random point in the domain (or 
+        % use an existing desing.)
+        Xnew = -5 + (5+5)*rand;
+        Xtrain = Xnew;
+    end
+    
+    %% Evaluate the function at the new point.
+    % Noiseless observation. Not realistic IRL because give a set
+    % of design parameters, our evaluation is never exactly the same
+    % as the "true" underlying function.
+    ftrain = sin(Xtrain);
+    
+    %% Obtain the posterior, given the observations.
+    
+    [postMu, postCov] = computePosterior(xs, Xtrain, ftrain);
+    
+    %% Various plots the functions for visualization.
+    
+    % Plot the posterior Gaussian process with two standard deviation bounds.
+    figure; hold on
+    mu = postMu(:);
+    S2 = diag(postCov);
+    f = [mu+2*sqrt(S2);flip(mu-2*sqrt(S2),1)];
+    fill([xs; flip(xs,1)], f, [7 7 7]/8, 'EdgeColor', [7 7 7]/8);
 
-%% Generate observation (training) data.
+    % Sample the posterior and plot the sample functions.
+    for i=1:3
+        fs = sampleGuassianProcess(postMu, postCov);
+        plot(xs, fs, 'k-', 'linewidth', 2)
+        hold on
+    end
 
-if iter ~= 1
-    ei = expectedImprovement(xs, mu, cov);
-    [a,b] = max(ei);
-    Xnew = xs(b)
+    % Plot the mean.
+    plot(xs, mu, 'r', 'LineWidth', 2)
+    
+    %% The posterior in current iteration will be the the prior in the next.
+    
+    mu = postMu;
+    cov = postCov;
+    
 end
 
-if iter == 1
-    Xtrain = Xnew;
-else
-    Xtrain(end+1,1) = Xnew; 
-end
-ftrain = sin(Xtrain);
-%% Obtain the posterior, given the observations.
-[postMu, postCov] = computePosterior(xs, Xtrain, ftrain);
-
-%% Evaluate expected improvement at sample points
-%ei = expectedImprovement(ftrain, postMu, postCov)
-
-%% Plot the posterior Gaussian process with two standard deviation bounds.
-figure; hold on
-mu = postMu(:);
-S2 = diag(postCov);
-f = [mu+2*sqrt(S2);flip(mu-2*sqrt(S2),1)];
-fill([xs; flip(xs,1)], f, [7 7 7]/8, 'EdgeColor', [7 7 7]/8);
-
-%% Sample the posterior and plot the sample functions.
-for i=1:3
-  fs = sampleGuassianProcess(postMu, postCov);
-  plot(xs, fs, 'k-', 'linewidth', 2)
-  hold on
-end
-
-% Plot the mean.
-plot(xs, mu, 'r', 'LineWidth', 2)
-
-mu = postMu;
-cov = postCov;
- 
-
-end
+%% Function definitions.
 
 % Sample points will have a mean of 0
 function mu = muFn(x)
@@ -88,6 +99,14 @@ Z = randn(n, 1);
 fs = bsxfun(@plus, mu(:), A*Z)';
 end
 
+function ei = expectedImprovement(mu, cov)
+% Returns the value of expected imrovment function at the sample points.
+t = min(mu);
+imp = mu - t;
+Z = imp ./ diag(cov);
+ei = imp .* cdf('Normal',Z,0,1) + diag(cov) .* pdf('Normal',Z,0,1);
+
+end
 
 function [postMu, postCov] = computePosterior(xs, Xtrain, ftrain)
 % Inputs
@@ -110,14 +129,5 @@ postMu = muFn(xs) + Ks'*Ki*(ftrain - muFn(Xtrain));
 % Covariance of the posterior.
 postCov = Kss - Ks'*Ki*Ks;
 
-
-end
-
-function ei = expectedImprovement(xs, mu, cov)
-% Returns the value of expected imrovment function at the sample points.
-t = min(mu);
-imp = mu - t;
-Z = imp ./ diag(cov);
-ei = imp .* cdf('Normal',Z,0,1) + diag(cov) .* pdf('Normal',Z,0,1);
 
 end
