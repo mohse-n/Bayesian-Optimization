@@ -1,4 +1,5 @@
 clear;
+close all;
 L = 1;
 
 %% Plot sample functions from the prior.
@@ -74,13 +75,13 @@ end
 
 % Sample points will have a mean of 0
 function mu = muFn(x)
-mu = 0*x(:).^2;
+    mu = 0*x(:).^2;
 end
 
 % Kernel function for defining a Covariance matrix
 function cov = Kfn(x,z)
-L = 1;
-cov = 1*exp(-pdist2(x/L,z/L).^2/2);
+    L = 1;
+    cov = 1*exp(-pdist2(x/L,z/L).^2/2);
 end
 
 function fs = sampleGuassianProcess(mu, sigma)
@@ -88,23 +89,23 @@ function fs = sampleGuassianProcess(mu, sigma)
 % Inputs: Mean (mu) and covariance matrix (sigma) of samples.
 % Output: Vector containing value of the (sampled) function at each sample.
 
-% Number of samples.
-n = length(mu);
-% chol is senstivie to poorly conditioned matrices which sigma is often is.
-% Add small number to diagonal elements to improve condition number. 
-sigma = sigma + 1e-15*eye(n);
-% Obtain the cholesky matrix.
-A = chol(sigma, 'lower');
-Z = randn(n, 1);
-fs = bsxfun(@plus, mu(:), A*Z)';
+    % Number of samples.
+    n = length(mu);
+    % chol is senstivie to poorly conditioned matrices which sigma is often is.
+    % Add small number to diagonal elements to improve condition number. 
+    sigma = sigma + 1e-15*eye(n);
+    % Obtain the cholesky matrix.
+    A = chol(sigma, 'lower');
+    Z = randn(n, 1);
+    fs = bsxfun(@plus, mu(:), A*Z)';
 end
 
 function ei = expectedImprovement(mu, cov)
 % Returns the value of expected imrovment function at the sample points.
-t = min(mu);
-imp = mu - t;
-Z = imp ./ diag(cov);
-ei = imp .* cdf('Normal',Z,0,1) + diag(cov) .* pdf('Normal',Z,0,1);
+    t = min(mu);
+    imp = mu - t;
+    Z = imp ./ diag(cov);
+    ei = imp .* cdf('Normal',Z,0,1) + diag(cov) .* pdf('Normal',Z,0,1);
 
 end
 
@@ -118,16 +119,16 @@ function [postMu, postCov] = computePosterior(xs, Xtrain, ftrain)
 % postMu, postCov: Mean and covariance matrix of sample points in the
 % posterior distribution.
 
-keps = 1e-8;
-% Compute correlation matrices between traning data and previous data.
-K = Kfn(Xtrain, Xtrain); % K
-Ks = Kfn(Xtrain, xs); %K_*
-Kss = Kfn(xs, xs) + keps*eye(length(xs)); % K_** (keps is essential!)
-Ki = inv(K);
-% Mean of the posterior.
-postMu = muFn(xs) + Ks'*Ki*(ftrain - muFn(Xtrain));
-% Covariance of the posterior.
-postCov = Kss - Ks'*Ki*Ks;
+    keps = 1e-8;
+    % Compute correlation matrices between traning data and previous data.
+    K = Kfn(Xtrain, Xtrain); % K
+    Ks = Kfn(Xtrain, xs); %K_*
+    Kss = Kfn(xs, xs) + keps*eye(length(xs)); % K_** (keps is essential!)
+    Ki = inv(K);
+    % Mean of the posterior.
+    postMu = muFn(xs) + Ks'*Ki*(ftrain - muFn(Xtrain));
+    % Covariance of the posterior.
+    postCov = Kss - Ks'*Ki*Ks;
 
 
 end
