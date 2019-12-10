@@ -52,8 +52,8 @@ iter
     % Plot the posterior Gaussian process with two standard deviation bounds.
     
     mu = postMu(:);
-    S2 = diag(postCov);
-    f = [mu+2*sqrt(S2);flip(mu-2*sqrt(S2),1)];
+    sigma = sqrt(diag(postCov));
+    f = [mu+2*sigma;flip(mu-2*sigma,1)];
     fill([xs; flip(xs,1)], f, [7 7 7]/8, 'EdgeColor', [7 7 7]/8);
 
     % Sample the posterior and plot the sample functions.
@@ -106,10 +106,10 @@ end
 function ei = expectedImprovement(xs, Xtrain, ftrain, mu, cov)
 % Returns the value of expected imrovment function at the sample points.
     % Best result yet.
-    zeta = 0.01;
+    zeta = 0;
     t = min(ftrain);
     imp = mu - t - zeta;
-    sigma = diag(cov);
+    sigma = sqrt(diag(cov));
     Z = imp ./ sigma;
     ei = imp .* cdf('Normal',Z,0,1) + sigma .* pdf('Normal',Z,0,1);
     ei(sigma == 0 ) = 0; 
