@@ -22,7 +22,7 @@ figure
 
 if iter ~= 1
     ei = expectedImprovement(xs, mu, cov);
-    [a,b] = min(ei);
+    [a,b] = max(ei);
     Xnew = xs(b)
 end
 
