@@ -4,14 +4,14 @@ L = 1;
 
 %% Plot sample functions from the prior.
 % Sample points.
-x_grid = (-5:0.2:5)';
+x_grid = (-1:0.05:2)';
 % Initial covariance matrix and mean. 
-cov =  kFn(x_grid, x_grid);
+cov = kFn(x_grid, x_grid);
 mu = muFn(x_grid);
-Xiknow = 5:-1:-5;
+Xiknow = -5:1:5;
 f_observe = 0
 
-for iter = 1:10
+for iter = 1:5
   
 iter
     %% Obtain the new evaluation point.
@@ -26,23 +26,24 @@ iter
         % we would optimize it using a more efficient method.
         [max_val,max_index] = max(ei);
         % Our new point for evaluation is one at which EI is maximum.
-        new_observe = x_grid(max_index)
+        new_observe = x_grid(max_index);
         %x_observe(end+1,1) = Xiknow(iter);
-        x_observe(end+1,1) = new_observe
+        x_observe(end+1,1) = new_observe;
         % Plot the expected improvement function.
-        plot(x_grid,ei)
+  %      plot(x_grid,ei)
     else
         % First iteration, evaluate a random point in the domain (or 
         % use an existing desing.)
-        new_observe = 1;
+        new_observe = [-0.9; 1.1];
         x_observe = new_observe;
     end
-      
+
     %% Evaluate the function at the new point.
     % Noiseless observation. Not realistic IRL because give a set
     % of design parameters, our evaluation is never exactly the same
     % as the "true" underlying function.
-    f_observe = x_observe.^2 .* sin(x_observe)
+    f_observe = objFunction(x_observe);
+    %f_observe = sin(x_observe)
     plot(x_observe, f_observe, 'ok')
     plot(x_observe(end), f_observe(end), '*b')
     %% Obtain the posterior, given the observations.
@@ -59,12 +60,12 @@ iter
     fill([x_grid; flip(x_grid,1)], f, [7 7 7]/8, 'EdgeColor', [7 7 7]/8);
 
     % Sample the posterior and plot the sample functions.
-    for i=1:3
-        fs = sampleGuassianProcess(postMu, postCov);
-        % Uncomment to plot a 3 sample functions.
-        %plot(x_grid, fs, 'k-', 'linewidth', 2)
-        hold on
-    end
+%     for i=1:3
+%         fs = sampleGuassianProcess(postMu, postCov);
+%         % Uncomment to plot a 3 sample functions.
+%         %plot(x_grid, fs, 'k-', 'linewidth', 2)
+%         hold on
+%     end
     
     % Plot the mean.
     plot(x_grid, mu, 'r', 'LineWidth', 2)
@@ -89,6 +90,12 @@ function cov = kFn(x,z)
     cov = 1*exp(-pdist2(x/L,z/L).^2/2);
 end
 
+function f = objFunction(x)
+
+    f = -sin(3*x) - x.^2 + 0.7*x;
+
+end
+
 function fs = sampleGuassianProcess(mu, sigma)
 % This function samples the Gaussian process once.
 % Inputs: Mean (mu) and covariance matrix (sigma) of samples.
@@ -106,9 +113,10 @@ function fs = sampleGuassianProcess(mu, sigma)
 end
 
 function ei = expectedImprovement(f_observe, mu, cov)
-% Returns the value of expected imrovment function at the sample points.
-    % Best result yet.
+% Returns the value of expected improvement function at the sample points.
+    
     zeta = 0.01;
+    % Best result yet.
     t = min(f_observe);
     imp = mu - t - zeta;
     sigma = sqrt(diag(cov));
