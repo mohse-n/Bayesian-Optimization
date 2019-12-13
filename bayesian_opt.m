@@ -1,21 +1,19 @@
 clear;
 close all;
-L = 1;
 
 %% Plot sample functions from the prior.
 % Sample points.
 x_grid = (-1:0.05:2)';
-% Initial covariance matrix and mean. 
+% Initial covariance matrix and mean (the very first posterior). 
 cov = kFn(x_grid, x_grid);
 mu = muFn(x_grid);
-Xiknow = -5:1:5;
-f_observe = 0
+% Value of the objective function.
+f_real = objFunction(x_grid);
 
-for iter = 1:5
+for iter = 1:6
   
-iter
     %% Obtain the new evaluation point.
-    figure; hold on
+   
     if iter ~= 1
         % Obtain the EI funtion at sample points. Only for visualization.
         % It wouldn't be practical to do this in higher dimensional problems.
@@ -27,13 +25,10 @@ iter
         [max_val,max_index] = max(ei);
         % Our new point for evaluation is one at which EI is maximum.
         new_observe = x_grid(max_index);
-        %x_observe(end+1,1) = Xiknow(iter);
         x_observe(end+1,1) = new_observe;
-        % Plot the expected improvement function.
-  %      plot(x_grid,ei)
     else
-        % First iteration, evaluate a random point in the domain (or 
-        % use an existing desing.)
+        % First iteration, evaluate random points in the domain (or 
+        % use an existing designs.)
         new_observe = [-0.9; 1.1];
         x_observe = new_observe;
     end
@@ -43,9 +38,10 @@ iter
     % of design parameters, our evaluation is never exactly the same
     % as the "true" underlying function.
     f_observe = objFunction(x_observe);
-    %f_observe = sin(x_observe)
-    plot(x_observe, f_observe, 'ok')
-    plot(x_observe(end), f_observe(end), '*b')
+    % Plot the vertical line, showing the next observation point.
+    y = -3:0.05:2;
+    w = plot(x_observe(end)*ones(length(y),1),y ,'g', 'LineWidth', 2);
+  
     %% Obtain the posterior, given the observations.
     
     [postMu, postCov] = computePosterior(x_grid, x_observe, f_observe);
@@ -53,22 +49,27 @@ iter
     %% Various plots for visualization purposes only.
     
     % Plot the posterior Gaussian process with two standard deviation bounds.
-    
-    mu = postMu(:);
+   
+    fig = figure;
+    hold on;
+    grid on;
+    set(fig, 'Position', [500 0 1000 400])
+    set(fig,'Color',[1 1 1]);
+    xlabel('x');
+    ylabel('y');
+    figTitle = strcat("Bayesian optimization, iteration ", int2str(iter));
+    title(figTitle);
+    set(gca,'FontName','Cambria','FontSize',14);
+   
     sigma = sqrt(diag(postCov));
-    f = [mu+2*sigma;flip(mu-2*sigma,1)];
-    fill([x_grid; flip(x_grid,1)], f, [7 7 7]/8, 'EdgeColor', [7 7 7]/8);
-
-    % Sample the posterior and plot the sample functions.
-%     for i=1:3
-%         fs = sampleGuassianProcess(postMu, postCov);
-%         % Uncomment to plot a 3 sample functions.
-%         %plot(x_grid, fs, 'k-', 'linewidth', 2)
-%         hold on
-%     end
-    
-    % Plot the mean.
-    plot(x_grid, mu, 'r', 'LineWidth', 2)
+    f_plus = postMu + 2*sigma;
+    f_minus = postMu - 2*sigma;
+    f = [f_plus, f_minus];
+    p = plot(x_grid, f, '--k', 'LineWidth', 2);
+    q = plot(x_grid, postMu, 'r', 'LineWidth', 2);
+    r = plot(x_grid, f_real, 'b');
+  
+    legend([p(1) p(2) q r], "Mean + 2 stddev", "Mean - 2 stddev", "Mean", "Objective function");
     
     %% The posterior in current iteration will be the the prior in the next.
    
@@ -79,17 +80,19 @@ end
 
 %% Function definitions.
 
-% Sample points will have a mean of 0
+% In Gaussian processes, usually mu = 0;
 function mu = muFn(x)
     mu = 0*x(:).^2;
 end
 
-% Kernel function for defining a Covariance matrix
+% Kernel function for defining a covariance matrix
 function cov = kFn(x,z)
+    % L: some type of "length distance". Lower L: Sample function are more jaggedy.
+    % higher L: Sample functions are smoother.
     L = 1;
     cov = 1*exp(-pdist2(x/L,z/L).^2/2);
 end
-
+% The function we're trying to optimize/approximate.
 function f = objFunction(x)
 
     f = -sin(3*x) - x.^2 + 0.7*x;
@@ -103,25 +106,24 @@ function fs = sampleGuassianProcess(mu, sigma)
 
     % Number of samples.
     n = length(mu);
-    % chol is senstivie to poorly conditioned matrices which sigma is often is.
+    % chol is senstivie to poorly conditioned matrices which sigma often is.
     % Add small number to diagonal elements to improve condition number. 
     sigma = sigma + 1e-15*eye(n);
     % Obtain the cholesky matrix.
     A = chol(sigma, 'lower');
     Z = randn(n, 1);
-    fs = bsxfun(@plus, mu(:), A*Z)';
+    fs = mu(:) +  A*Z;
 end
 
 function ei = expectedImprovement(f_observe, mu, cov)
 % Returns the value of expected improvement function at the sample points.
     
-    zeta = 0.01;
-    % Best result yet.
+    % The best (smallest) observation yet.
     t = min(f_observe);
-    imp = mu - t - zeta;
+    imp = mu - t;
     sigma = sqrt(diag(cov));
-    Z = imp ./ sigma;
-    ei = imp .* cdf('Normal',Z,0,1) + sigma .* pdf('Normal',Z,0,1);
+    u = imp ./ sigma;
+    ei = imp .* cdf('Normal',u,0,1) + sigma .* pdf('Normal',u,0,1);
     ei(sigma == 0) = 0; 
 end
 
@@ -137,14 +139,14 @@ function [postMu, postCov] = computePosterior(x_grid, x_observe, f_observe)
 
     keps = 1e-8;
     % Compute correlation matrices between traning data and previous data.
-    K = kFn(x_observe, x_observe); % K
-    Ks = kFn(x_observe, x_grid); %K_*
-    Kss = kFn(x_grid, x_grid) + keps*eye(length(x_grid)); % K_** (keps is essential!)
+    K = kFn(x_observe, x_observe); 
+    Ks = kFn(x_observe, x_grid); 
+    % We add a small value to diagonal elements to improve the condition
+    % number.
+    Kss = kFn(x_grid, x_grid) + keps*eye(length(x_grid)); 
     Ki = inv(K);
     % Mean of the posterior.
     postMu = muFn(x_grid) + Ks'*Ki*(f_observe - muFn(x_observe));
     % Covariance of the posterior.
     postCov = Kss - Ks'*Ki*Ks;
-
-
 end
